@@ -109,6 +109,9 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
     case op @ SetTrigMode(toSet) => debug(op); srvSetTrigMode(toSet)
     case op @ SetTrigThresh(thresholds @ _*) => debug(op); srvSetTrigThresh(thresholds: _*)
 
+    case op @ SetTimeStampMode(mode) => debug(op); srvSetTimeStampMode(mode)
+    case op @ GetTimeStampMode() => debug(op); reply(srvGetTimeStampMode())
+    
     case op @ StartCapture() => debug(op); srvStartCapture()
     case op @ StopCapture() => debug(op); srvStopCapture()
 
@@ -186,8 +189,7 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
       _ <- CONTROL_STATUS.TRGARMST set 1
       _ <- CONTROL_STATUS.TRGROUTE set 1
       _ <- CONTROL_STATUS.BKFULLOUT2 set 1
-      _ <- CONTROL_STATUS.TSCLRMODE0 set 1
-      _ <- CONTROL_STATUS.TSCLRMODE1 set 1
+      _ <- CONTROL_STATUS.TSCLRMODE set tsModeTable(TSClearOnFirstStop)
       _ <- sync()
     } yield {} }
     
@@ -353,8 +355,27 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
   def setTrigThresh(thresholds: (Int, TriggerThreshold)*): Unit
   def srvSetTrigThresh(thresholds: (Int, TriggerThreshold)*) =
     setTrigThresh(thresholds: _*)
-  
-  
+
+
+  def srvSetTimeStampMode(mode: TimeStampMode): Unit = {
+    import memory._
+    run { for {
+      _ <- CONTROL_STATUS.TSCLRMODE set (tsModeTable(mode))
+      _ <- sync()
+    } yield {} }
+  }
+
+  def srvGetTimeStampMode(): TimeStampMode = {
+    import memory._
+    run { for {
+      modeId <- CONTROL_STATUS.TSCLRMODE get()
+      _ <- sync()
+    } yield {
+      tsModeTableInv(modeId())
+    } }
+  }
+
+
   def startCapture(): Unit = {
     debug("Starting acquisition")
 
@@ -1093,10 +1114,8 @@ object SIS3300Server extends Logging {
       def BKFULLOUT2 = RWBit(9)
       /** Bank full pulse on LEMO output 3 */
       def BKFULLOUT3 = RWBit(10)
-      /** Set Timestamp Clear mode bit 0 */
-      def TSCLRMODE0 = RWBit(12)
-      /** Set Timestamp Clear mode bit 1, not supported by all firmware versions */
-      def TSCLRMODE1 = RWBit(13)
+      /** Timestamp Clear mode, not supported by all firmware versions */
+      def TSCLRMODE = RWBitRange(12,13)
 
       /** Status User Input */
       def USERIN = ROBit(16)
@@ -1531,5 +1550,16 @@ object SIS3300Server extends Logging {
     )
     
     val avgConfigTable = Map((0 to 7) map (1 << _) zipWithIndex : _*)
+    
+    val tsModeTable: Map[SIS3300.TimeStampMode, Word] = {
+      import SIS3300._
+      Map (
+        TSClearOnBankSwitch -> 0x00,
+        TSClearNever -> 0x01,
+        TSClearOnFirstStop -> 0x02,
+        TSClearOnExternal -> 0x03 
+      )
+    }
+    val tsModeTableInv: Map[Word, SIS3300.TimeStampMode] = tsModeTable map {_.swap}
   }
 }

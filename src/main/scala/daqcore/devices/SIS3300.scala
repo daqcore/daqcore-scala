@@ -52,6 +52,9 @@ trait SIS3300 extends EventSource with Device {
   def setTrigThresh(thresholds: (Int, TriggerThreshold)*) =
     srv ! SetTrigThresh(thresholds: _*)
 
+  def setTimeStampMode(mode: TimeStampMode) = srv ! SetTimeStampMode(mode)
+  def getTimeStampMode() = srv !!> GetTimeStampMode()
+
   def startCapture() = srv ! StartCapture()
   def stopCapture() = srv ! StopCapture()
 
@@ -100,6 +103,12 @@ object SIS3300 {
 
   case class BankState(nevents: Int, busy: Boolean, full: Boolean)
   case class BankStates(currentBank: Int, states: Map[Int, BankState])
+
+  abstract class TimeStampMode
+  case object TSClearOnBankSwitch extends TimeStampMode
+  case object TSClearNever extends TimeStampMode
+  case object TSClearOnFirstStop extends TimeStampMode
+  case object TSClearOnExternal extends TimeStampMode
   
   case class ResetModule() extends ActorCmd
   case class InitModule() extends ActorCmd
@@ -121,6 +130,9 @@ object SIS3300 {
   case class SetDAQSettings(toSet: DAQSettings) extends ActorCmd
   case class SetTrigMode(toSet: TriggerMode)
   case class SetTrigThresh(thresholds: (Int, TriggerThreshold)*) extends ActorCmd
+
+  case class SetTimeStampMode(mode: TimeStampMode) extends ActorCmd // Only supported by some firmware versions
+  case class GetTimeStampMode() extends ActorQuery[TimeStampMode] // Only supported by some firmware versions
 
   case class StartCapture() extends ActorCmd
   case class StopCapture() extends ActorCmd
