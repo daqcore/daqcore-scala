@@ -32,7 +32,7 @@ import daqcore.data._
 import Event.Raw.Transient
 
 
-abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends EventServer with SyncableServer {
+abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int, devId: Int = -1) extends EventServer with SyncableServer {
   import SIS3300._
   import SIS3300Server._
 
@@ -56,6 +56,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
   // 48-bit timestamps (currently only in firmware rev. 1105).
   protected var extendedTimestampsVar: Boolean = false
   def extendedTimestamps = extendedTimestampsVar
+
+  val deviceId = if (devId >= 0) devId else (baseAddress >>> 24)
 
   override def init() = {
     super.init
@@ -87,6 +89,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
     
     case op @ Device.GetSubDevs() => debug(op); reply(srvGetSubDevs())
 
+
+    case op @ GetDeviceId() => debug(op); reply(deviceId)
 
     case op @ ResetModule() => debug(op); srvResetModule()
     case op @ InitModule() => debug(op); srvInitModule()
@@ -667,7 +671,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
             idx = nextEventNoVar + i,
             run = runStart.get.uuid,
             time = time,
-            systime = systime
+            systime = systime,
+            devid = deviceId
           ),
           raw = Event.Raw (
             trig = trig,

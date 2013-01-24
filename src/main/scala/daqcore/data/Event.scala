@@ -32,7 +32,8 @@ object Event {
     idx: Int,
     run: UUID,
     time: Double,
-    systime: Double
+    systime: Double,
+    devid: Int = 0
   )
   
   case class Raw (

@@ -30,6 +30,8 @@ import daqcore.io._
 trait SIS3300 extends EventSource with Device {
   import SIS3300._
 
+  def getDeviceId(): Future[Int] = srv !!> GetDeviceId()
+
   def resetModule() = srv ! ResetModule()
   def initModule() = srv ! InitModule()
 
@@ -110,6 +112,8 @@ object SIS3300 {
   case object TSClearNever extends TimeStampMode
   case object TSClearOnFirstStop extends TimeStampMode
   case object TSClearOnExternal extends TimeStampMode
+
+  case class GetDeviceId() extends ActorQuery[Int]
   
   case class ResetModule() extends ActorCmd
   case class InitModule() extends ActorCmd
@@ -151,8 +155,8 @@ trait SIS3300_03 extends ServerProfile with SIS3300 {
 
 
 object SIS3300_03 {
-  def apply(vmeBus: VMEBus, baseAddress: Int, sv: Supervising = defaultSupervisor, lc: LifeCycle = UndefinedLifeCycle): SIS3300_03 =
-    SIS3300_03_Server(vmeBus, baseAddress, sv)
+  def apply(vmeBus: VMEBus, baseAddress: Int, devId: Int = -1, sv: Supervising = defaultSupervisor, lc: LifeCycle = UndefinedLifeCycle): SIS3300_03 =
+    SIS3300_03_Server(vmeBus, baseAddress, devId, sv)
 }
 
 
@@ -162,6 +166,6 @@ trait SIS3300_11 extends ServerProfile with SIS3300 {
 
 
 object SIS3300_11 {
-  def apply(vmeBus: VMEBus, baseAddress: Int, sv: Supervising = defaultSupervisor, lc: LifeCycle = UndefinedLifeCycle): SIS3300_11 =
-    SIS3300_11_Server(vmeBus, baseAddress, sv)
+  def apply(vmeBus: VMEBus, baseAddress: Int, devId: Int = -1, sv: Supervising = defaultSupervisor, lc: LifeCycle = UndefinedLifeCycle): SIS3300_11 =
+    SIS3300_11_Server(vmeBus, baseAddress, devId, sv)
 }
