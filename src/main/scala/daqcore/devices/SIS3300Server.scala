@@ -313,7 +313,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
       nAverage = modNAverage,
       sampleRate = modSampleRate,
       tsBase = if (tsPreDiv > 0) ((tsPreDiv + 2).toDouble / clock) else (1.toDouble / clock),
-      nPages = modNPages
+      nPages = modNPages,
+      captureUserIn = toSet.captureUserIn
     )
 
     debug("Setting: " + clampedSettings)
@@ -608,6 +609,7 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
         val trig = for { ch <- channels; if Bit(8-ch)(trigInfo) == 1 } yield ch
         
         var userInMap = Map[Int, Transient]()
+        var userInHigh = false
 
         val transSeq: Seq[Seq[(Int, Transient)]] = {
           val SAMODD = BankMemoryEntry.SAMODD
@@ -615,6 +617,7 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
           val USRIN = BankMemoryEntry.USRIN
           
           var usrinArray = Array.empty[Int]
+          var checkUsrIn = true
           
           for { (group, raws) <- rawGroupEvData.toSeq } yield {
             if (!settingsVar.daq.trigOnly || trig.contains(group.chOdd) || trig.contains(group.chEven)) {
@@ -631,16 +634,21 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
               val evenArray = Array.ofDim[Int](n)
               if (usrinArray.size != n) usrinArray = Array.ofDim[Int](n)
 
-              val fillUserIn = (!settingsVar.daq.trigOnly && userInMap.isEmpty)
-
               var j = 0
+              var usrInMax = 0
               for (part <- rawParts; w <- part) {
                 oddArray(j) = SAMODD(w)
                 evenArray(j) = SAMEVEN(w)
                 usrinArray(j) = USRIN(w)
                 j += 1
               }
-              if (fillUserIn) userInMap = Map(9 -> Transient(trigPos, ArrayVec.wrap(usrinArray)))
+              if (checkUsrIn) {
+                val usrInVec = ArrayVec.wrap(usrinArray)
+                usrInVec foreach { x => if (x > 0) userInHigh = true }
+                if (settingsVar.daq.captureUserIn)
+                 userInMap = Map(9 -> Transient(trigPos, usrInVec))
+                checkUsrIn = false
+              }
               
               Seq(
                 group.chOdd -> Transient(trigPos, ArrayVec.wrap(oddArray)),
@@ -663,7 +671,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
           ),
           raw = Event.Raw (
             trig = trig,
-            trans = transients
+            trans = transients,
+            flags = if (userInHigh) 1 else 0
           )
         )
         

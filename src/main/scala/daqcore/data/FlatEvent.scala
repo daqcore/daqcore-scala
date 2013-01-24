@@ -46,11 +46,13 @@ object FlatEvent {
 
   case class FlatRaw (
     trig: ArrayVecInt,
-    trans: FlatRaw.FlatTransients
+    trans: FlatRaw.FlatTransients,
+    flags: Int
   ) {
     def toRaw = Event.Raw(
       trig = trig,
-      trans = trans.toTransients
+      trans = trans.toTransients,
+      flags = flags
     )
   }
 
@@ -60,7 +62,8 @@ object FlatEvent {
 
     def apply(raw: Event.Raw): FlatRaw = FlatRaw (
       trig = raw.trig,
-      trans = FlatTransients(raw.trans)
+      trans = FlatTransients(raw.trans),
+      flags = raw.flags
     )
 
 

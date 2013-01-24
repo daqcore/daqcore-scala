@@ -37,7 +37,8 @@ object Event {
   
   case class Raw (
     trig: Seq[Int] = Vector.empty[Int],
-    trans: Map[Int, Raw.Transient] = Map.empty[Int, Raw.Transient]
+    trans: Map[Int, Raw.Transient] = Map.empty[Int, Raw.Transient],
+    flags: Int = 0
   )
   
   object Raw {

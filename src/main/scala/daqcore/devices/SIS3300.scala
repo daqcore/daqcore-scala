@@ -83,7 +83,8 @@ object SIS3300 {
     sampleRate: Double = 100E6,
     tsBase: Double = 10E-9.toLong, // in ns
     nPages: Int = Int.MaxValue,
-    trigOnly: Boolean = false
+    trigOnly: Boolean = false,
+    captureUserIn: Boolean = false
   )
 
   case class TriggerSettings (
