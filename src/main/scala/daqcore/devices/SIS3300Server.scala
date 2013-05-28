@@ -577,7 +577,7 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int, devId: In
       }
       val rawGroupEvData = for {
         (group, mem) <- groupMem
-        if (!settingsVar.daq.trigOnly || trigEnabled(group.chOdd) || trigEnabled(group.chEven))      
+        if (trigEnabled(group.chOdd) || trigEnabled(group.chEven))
       } yield {
         val raw = read(mem take nEvents * nSamples).toArrayVec
         group -> raw
