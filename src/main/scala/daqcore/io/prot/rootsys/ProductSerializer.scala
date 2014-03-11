@@ -18,6 +18,7 @@
 package daqcore.io.prot.rootsys
 
 import java.util.UUID
+import java.lang.reflect.Constructor
 
 import daqcore.util._
 
@@ -25,15 +26,21 @@ import daqcore.util._
 class ProductSerializer[A <: Product : ClassManifest]() extends ContentSerializer[A] {
   import ProductSerializer._
 
+  protected def getCtorMFs(ctor: Constructor[_]) = ctor.getGenericParameterTypes map mfInfo.manifestOf toList
+
   val mfInfo = ManifestInfo(mf)
-  val ctor = cl.getConstructors().head
+  val ctors = cl.getConstructors().toList
+
+  val fieldMFs = cl.getDeclaredFields map {_.getGenericType} map mfInfo.manifestOf toList
+
+  val ctor = ctors.find{ c =>
+      val ctorMFs = getCtorMFs(c)
+      ctorMFs == fieldMFs.take(ctorMFs.size)
+  }.getOrElse(throw new IllegalArgumentException("ProductSerializer: Can't support type " + mf + ", found no matching constructor for field types."))
 
   val fields: Seq[FieldIO[_]] = {
-    val ctorMFs = ctor.getGenericParameterTypes map mfInfo.manifestOf toList
-    val fieldMFs = cl.getDeclaredFields map {_.getGenericType} map mfInfo.manifestOf take ctorMFs.size toList
+    val ctorMFs = getCtorMFs(ctor)
     val fieldNames = cl.getDeclaredFields map {_.getName} take ctorMFs.size toList
-    
-    if (fieldMFs != ctorMFs) throw new IllegalArgumentException("ProductSerializer: Can't support type " + mf + ", constructor argument and field types don't match.")
     
     for {(name, mf) <- fieldNames zip ctorMFs} yield FieldIO(name, ContentSerializer.forType(mf))
   }
