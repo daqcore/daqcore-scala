@@ -353,6 +353,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int, devId: In
   }
   
   def trigEnabled(i: Int): Boolean = settings.trigger.thresholds(i).threshold != 0xfff
+
+  def readSamplesEnabled(i: Int): Boolean = settings.daq.readSamples.get(i).getOrElse(true)
   
   def srvSetTrigMode(toSet: TriggerMode): Unit
   
@@ -577,7 +579,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int, devId: In
       }
       val rawGroupEvData = for {
         (group, mem) <- groupMem
-        if (trigEnabled(group.chOdd) || trigEnabled(group.chEven))
+        if (trigEnabled(group.chOdd) || trigEnabled(group.chEven)) &&
+           (readSamplesEnabled(group.chOdd) || readSamplesEnabled(group.chEven))
       } yield {
         val raw = read(mem take nEvents * nSamples).toArrayVec
         group -> raw
@@ -624,7 +627,10 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int, devId: In
           var checkUsrIn = true
           
           for { (group, raws) <- rawGroupEvData.toSeq } yield {
-            if (!settingsVar.daq.trigOnly || trig.contains(group.chOdd) || trig.contains(group.chEven)) {
+            if (
+              (readSamplesEnabled(group.chOdd) || readSamplesEnabled(group.chEven)) &&
+              (!settingsVar.daq.trigOnly || trig.contains(group.chOdd) || trig.contains(group.chEven))
+            ) {
               val trigPos = nSamples - settings.daq.stopDelay / settings.daq.nAverage
               
               val rawParts = {
@@ -655,9 +661,13 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int, devId: In
               }
               
               Seq(
-                group.chOdd -> Transient(trigPos, ArrayVec.wrap(oddArray)),
-                group.chEven -> Transient(trigPos, ArrayVec.wrap(evenArray))
-              )
+                if (readSamplesEnabled(group.chOdd))
+                  Some( group.chOdd -> Transient(trigPos, ArrayVec.wrap(oddArray)) )
+                else None,
+                if (readSamplesEnabled(group.chEven))
+                  Some( group.chEven -> Transient(trigPos, ArrayVec.wrap(evenArray)) )
+                else None
+              ).flatten
             } else {
               Seq()
             }

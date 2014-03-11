@@ -86,7 +86,8 @@ object SIS3300 {
     tsBase: Double = 10E-9.toLong, // in ns
     nPages: Int = Int.MaxValue,
     trigOnly: Boolean = false,
-    captureUserIn: Boolean = false
+    captureUserIn: Boolean = false,
+    readSamples: Map[Int, Boolean] = SortedMap.empty[Int, Boolean]
   )
 
   case class TriggerSettings (
