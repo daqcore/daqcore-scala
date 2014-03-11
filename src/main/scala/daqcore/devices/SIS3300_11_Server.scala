@@ -30,7 +30,7 @@ import daqcore.monads._
 
 
 // SIS3300, default Firmware, major version 03
-class SIS3300_11_Server(vmeBus: VMEBus, baseAddress: Int) extends SIS3300Server(vmeBus, baseAddress) {
+class SIS3300_11_Server(vmeBus: VMEBus, baseAddress: Int, devId: Int = -1) extends SIS3300Server(vmeBus, baseAddress, devId) {
   import SIS3300._
   import SIS3300Server._
   import SIS3300_11_Server._
@@ -151,8 +151,8 @@ class SIS3300_11_Server(vmeBus: VMEBus, baseAddress: Int) extends SIS3300Server(
 object SIS3300_11_Server {  
   import SIS3300Server._
 
-  def apply(vmeBus: VMEBus, baseAddress: Int, sv: Supervising = defaultSupervisor, lc: LifeCycle = UndefinedLifeCycle): SIS3300_11 =
-    new ServerProxy(sv.linkStart(actorOf(new SIS3300_11_Server(vmeBus, baseAddress)), lc)) with SIS3300_11
+  def apply(vmeBus: VMEBus, baseAddress: Int, devId: Int = -1, sv: Supervising = defaultSupervisor, lc: LifeCycle = UndefinedLifeCycle): SIS3300_11 =
+    new ServerProxy(sv.linkStart(actorOf(new SIS3300_11_Server(vmeBus, baseAddress, devId)), lc)) with SIS3300_11
 
   class SISMemory11(mem: VMEBus, base: Address, timeout: Long = 10000) extends SISMemory(mem, base, timeout) {
     val majorFirmwareRevision = 0x11

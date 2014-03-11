@@ -32,7 +32,7 @@ import daqcore.data._
 import Event.Raw.Transient
 
 
-abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends EventServer with SyncableServer {
+abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int, devId: Int = -1) extends EventServer with SyncableServer {
   import SIS3300._
   import SIS3300Server._
 
@@ -56,6 +56,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
   // 48-bit timestamps (currently only in firmware rev. 1105).
   protected var extendedTimestampsVar: Boolean = false
   def extendedTimestamps = extendedTimestampsVar
+
+  val deviceId = if (devId >= 0) devId else (baseAddress >>> 24)
 
   override def init() = {
     super.init
@@ -87,6 +89,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
     
     case op @ Device.GetSubDevs() => debug(op); reply(srvGetSubDevs())
 
+
+    case op @ GetDeviceId() => debug(op); reply(deviceId)
 
     case op @ ResetModule() => debug(op); srvResetModule()
     case op @ InitModule() => debug(op); srvInitModule()
@@ -313,7 +317,8 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
       nAverage = modNAverage,
       sampleRate = modSampleRate,
       tsBase = if (tsPreDiv > 0) ((tsPreDiv + 2).toDouble / clock) else (1.toDouble / clock),
-      nPages = modNPages
+      nPages = modNPages,
+      captureUserIn = toSet.captureUserIn
     )
 
     debug("Setting: " + clampedSettings)
@@ -572,7 +577,7 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
       }
       val rawGroupEvData = for {
         (group, mem) <- groupMem
-        if (!settingsVar.daq.trigOnly || trigEnabled(group.chOdd) || trigEnabled(group.chEven))      
+        if (trigEnabled(group.chOdd) || trigEnabled(group.chEven))
       } yield {
         val raw = read(mem take nEvents * nSamples).toArrayVec
         group -> raw
@@ -608,6 +613,7 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
         val trig = for { ch <- channels; if Bit(8-ch)(trigInfo) == 1 } yield ch
         
         var userInMap = Map[Int, Transient]()
+        var userInHigh = false
 
         val transSeq: Seq[Seq[(Int, Transient)]] = {
           val SAMODD = BankMemoryEntry.SAMODD
@@ -615,6 +621,7 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
           val USRIN = BankMemoryEntry.USRIN
           
           var usrinArray = Array.empty[Int]
+          var checkUsrIn = true
           
           for { (group, raws) <- rawGroupEvData.toSeq } yield {
             if (!settingsVar.daq.trigOnly || trig.contains(group.chOdd) || trig.contains(group.chEven)) {
@@ -631,16 +638,21 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
               val evenArray = Array.ofDim[Int](n)
               if (usrinArray.size != n) usrinArray = Array.ofDim[Int](n)
 
-              val fillUserIn = (!settingsVar.daq.trigOnly && userInMap.isEmpty)
-
               var j = 0
+              var usrInMax = 0
               for (part <- rawParts; w <- part) {
                 oddArray(j) = SAMODD(w)
                 evenArray(j) = SAMEVEN(w)
                 usrinArray(j) = USRIN(w)
                 j += 1
               }
-              if (fillUserIn) userInMap = Map(9 -> Transient(trigPos, ArrayVec.wrap(usrinArray)))
+              if (checkUsrIn) {
+                val usrInVec = ArrayVec.wrap(usrinArray)
+                usrInVec foreach { x => if (x > 0) userInHigh = true }
+                if (settingsVar.daq.captureUserIn)
+                 userInMap = Map(9 -> Transient(trigPos, usrInVec))
+                checkUsrIn = false
+              }
               
               Seq(
                 group.chOdd -> Transient(trigPos, ArrayVec.wrap(oddArray)),
@@ -659,11 +671,13 @@ abstract class SIS3300Server(val vmeBus: VMEBus, val baseAddress: Int) extends E
             idx = nextEventNoVar + i,
             run = runStart.get.uuid,
             time = time,
-            systime = systime
+            systime = systime,
+            devid = deviceId
           ),
           raw = Event.Raw (
             trig = trig,
-            trans = transients
+            trans = transients,
+            flags = if (userInHigh) 1 else 0
           )
         )
         

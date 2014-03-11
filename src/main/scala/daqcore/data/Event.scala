@@ -32,12 +32,14 @@ object Event {
     idx: Int,
     run: UUID,
     time: Double,
-    systime: Double
+    systime: Double,
+    devid: Int = 0
   )
   
   case class Raw (
     trig: Seq[Int] = Vector.empty[Int],
-    trans: Map[Int, Raw.Transient] = Map.empty[Int, Raw.Transient]
+    trans: Map[Int, Raw.Transient] = Map.empty[Int, Raw.Transient],
+    flags: Int = 0
   )
   
   object Raw {
